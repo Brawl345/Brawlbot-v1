@@ -11,9 +11,9 @@ end
 -- Get commands for that plugin
 local function plugin_help(name)
   local plugin = plugins[name]
-  if not plugin then return nil end
+  if not plugin then return 'Dieses Plugin existiert nicht.' end
 
-  local text = ""
+  local text = plugin.description..'\n'
   if (type(plugin.usage) == "table") then
     for ku,usage in pairs(plugin.usage) do
       text = text..usage..'\n'
@@ -21,55 +21,47 @@ local function plugin_help(name)
     text = text..'\n'
   elseif has_usage_data(plugin) then -- Is not empty
     text = text..plugin.usage..'\n\n'
+  else
+    text = text..'\n'
   end
   return text
 end
 
 -- !help command
-local function telegram_help()
-  local text = "Plugin list: \n\n"
-  -- Plugins names
-  for name in pairs(plugins) do
-    text = text..name..'\n'
-  end
-  text = text..'\n'..'Write "!help [plugin name]" for more info.'
-  text = text..'\n'..'Or "!help all" to show all info.'
-  return text
-end
-
--- !help all command
-local function help_all()
+local function help_all(msg)
   local ret = ""
   for name in pairs(plugins) do
-    ret = ret .. plugin_help(name)
+    ret = ret..'Plugin: '..name..'\n'..plugin_help(name)
   end
-  return ret
+  local ret = ret..'Schreibe "!hilfe [Pluginname]" für die Hilfe für ein Plugin.'
+  if msg.to.type == 'chat' then
+    local user_name = get_name(msg)
+    send_msg('chat#id' .. msg.to.id, 'Hey '..user_name..', ich hab dir die Hilfe privat gesendet ;)', ok_cb, false)
+	send_large_msg('user#id' .. msg.from.id, ret, ok_cb, false)
+  else
+    return ret
+  end
 end
 
 local function run(msg, matches)
-  if matches[1] == "!help" then
-    return telegram_help()
-  elseif matches[1] == "!help all" then
-    return help_all()
+  if matches[1] == "!hilfe" or matches[1] == "!help" then
+    return help_all(msg)
   else 
     local text = plugin_help(matches[1])
-    if not text then
-      text = telegram_help()
-    end
     return text
   end
 end
 
 return {
-  description = "Help plugin. Get info from other plugins.  ", 
+  description = "Hilfe-Plugin", 
   usage = {
-    "!help: Show list of plugins.",
-    "!help all: Show all commands for every plugin.",
-    "!help [plugin name]: Commands for that plugin."
+    "!hilfe: Zeige Hilfen für alle Plugins.",
+    "!hilfe [Pluginname]: Zeige Hilfe für das ausgewählte Plugin."
   },
   patterns = {
+    "^!hilfe$",
+    "^!hilfe (.+)",
     "^!help$",
-    "^!help all",
     "^!help (.+)"
   }, 
   run = run 

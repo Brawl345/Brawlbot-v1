@@ -32,28 +32,37 @@ local function run(msg, matches)
   
   else
     print('send_file')
-    send_file(receiver, file, rmtmp_cb, cb_extra)
+    send_document(receiver, file, rmtmp_cb, cb_extra)
   end
   
 end
 
 return {
-  description = "When user sends media URL (ends with gif, mp4, pdf, etc.) download and send it to origin.", 
-  usage = "",
-  patterns = {
-    "(https?://[%w-_%.%?%.:/%+=&]+%.(gif))$",
-    "(https?://[%w-_%.%?%.:/%+=&]+%.(mp4))$",
-    "(https?://[%w-_%.%?%.:/%+=&]+%.(pdf))$",
-    "(https?://[%w-_%.%?%.:/%+=&]+%.(ogg))$",
-    "(https?://[%w-_%.%?%.:/%+=&]+%.(zip))$",
-    "(https?://[%w-_%.%?%.:/%+=&]+%.(mp3))$",
-    "(https?://[%w-_%.%?%.:/%+=&]+%.(rar))$",
-    "(https?://[%w-_%.%?%.:/%+=&]+%.(wmv))$",
-    "(https?://[%w-_%.%?%.:/%+=&]+%.(doc))$",
-    "(https?://[%w-_%.%?%.:/%+=&]+%.(avi))$",
-    "(https?://[%w-_%.%?%.:/%+=&]+%.(webp))$"
-  }, 
-  run = run 
+    description = "Sendet Mediendatei, wenn User einen Direktlink darauf postet", 
+    usage = {
+	  "Direktlink zu: gif, mp4, pdf, ogg, zip, tar.gz, 7z, mp3, rar, wmv, doc, avi, wav, apk, webm, ogv, webp",
+	  "ACHTUNG: Missbrauch dieser Funktion führt zum Ausschluss. Damit der Bot den Link ignoriert, poste Text hinter den Link."
+	},
+    patterns = {
+    	"(https?://[%w-_%.%?%.:,/%+=&%[%]]+%.(gif))$",
+    	"^(https?://[%w-_%.%?%.:,/%+=&%[%]]+%.(mp4))$",
+    	"(https?://[%w-_%.%?%.:,/%+=&%[%]]+%.(pdf))$",
+    	"(https?://[%w-_%.%?%.:,/%+=&%[%]]+%.(ogg))$",
+    	"(https?://[%w-_%.%?%.:,/%+=&%[%]]+%.(zip))$",
+        "(https?://[%w-_%.%?%.:,/%+=&%[%]]+%.(tar.gz))$",
+        "(https?://[%w-_%.%?%.:,/%+=&%[%]]+%.(7z))$",
+    	"(https?://[%w-_%.%?%.:,/%+=&%[%]]+%.(mp3))$",
+    	"(https?://[%w-_%.%?%.:,/%+=&%[%]]+%.(rar))$",
+    	"(https?://[%w-_%.%?%.:,/%+=&%[%]]+%.(wmv))$",
+    	"(https?://[%w-_%.%?%.:,/%+=&%[%]]+%.(doc))$",
+    	"^(https?://[%w-_%.%?%.:,/%+=&%[%]]+%.(avi))$",
+		"(https?://[%w-_%.%?%.:,/%+=&%[%]]+%.(wav))$",
+		"(https?://[%w-_%.%?%.:,/%+=&%[%]]+%.(apk))$",
+		"(https?://[%w-_%.%?%.:,/%+=&%[%]]+%.(webm))$",
+		"^(https?://[%w-_%.%?%.:,/%+=&%[%]]+%.(ogv))$",
+		"(https?://[%w-_%.%?%.:,/%+=&%[%]]+%.(webp))$"
+    }, 
+    run = run 
 }
 
 end

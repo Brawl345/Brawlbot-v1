@@ -1,14 +1,14 @@
+
 local usage = {
-   "!mine [ip]: Searches Minecraft server on specified ip and sends info. Default port: 25565",
-   "!mine [ip] [port]: Searches Minecraft server on specified ip and port and sends info.",
+   "!mine [IP]: Sucht Minecraft-Server und sendet Infos. Standard-Port: 25565",
+   "!mine [IP] [Port]: Sucht Minecraft-Server auf Port und sendet Infos.",
 }
-local ltn12 = require "ltn12"
 
 local function mineSearch(ip, port, receiver) --25565
   local responseText = ""
-  local api = "https://api.syfaro.net/server/status"
-  local parameters = "?ip="..(URL.escape(ip) or "").."&port="..(URL.escape(port) or "").."&players=true&favicon=true"
-  local http = require("socket.http")
+  local api = "https://mcapi.us/server/status"
+  local parameters = "?ip="..(URL.escape(ip) or "").."&port="..(URL.escape(port) or "").."&players=true"
+  print(api..parameters)
   local respbody = {} 
   local body, code, headers, status = http.request{
     url = api..parameters,
@@ -17,31 +17,36 @@ local function mineSearch(ip, port, receiver) --25565
     sink = ltn12.sink.table(respbody)
   }
   local body = table.concat(respbody)
-  if (status == nil) then return "ERROR: status = nil" end
-  if code ~=200 then return "ERROR: "..code..". Status: "..status end
+  if (status == nil) then return "FEHLER: status = nil" end
+  if code ~=200 then return "FEHLER: "..code..". Status: "..status end
   local jsonData = json:decode(body)
-  responseText = responseText..ip..":"..port.." ->\n"
-  if (jsonData.motd ~= nil) then
+  responseText = responseText..ip..":"..port..":\n"
+  if (jsonData.motd ~= nil and jsonData.motd ~= '') then
     local tempMotd = ""
     tempMotd = jsonData.motd:gsub('%§.', '')
-    if (jsonData.motd ~= nil) then responseText = responseText.." Motd: "..tempMotd.."\n" end
+    if (jsonData.motd ~= nil) then responseText = responseText.." MOTD: "..tempMotd.."\n" end
   end
   if (jsonData.online ~= nil) then
-    responseText = responseText.." Online: "..tostring(jsonData.online).."\n"
+    if jsonData.online == true then
+	  server_online = "Ja"
+	else
+	  server_online = "Nein"
+	end
+    responseText = responseText.." Online: "..server_online.."\n"
   end
   if (jsonData.players ~= nil) then
-    if (jsonData.players.max ~= nil) then
-      responseText = responseText.."  Max Players: "..jsonData.players.max.."\n"
+    if (jsonData.players.max ~= nil and jsonData.players.max ~= 0) then
+      responseText = responseText.."  Slots: "..jsonData.players.max.."\n"
     end
-    if (jsonData.players.now ~= nil) then
-      responseText = responseText.."  Players online: "..jsonData.players.now.."\n"
+    if (jsonData.players.now ~= nil and jsonData.players.max ~= 0) then
+      responseText = responseText.."  Spieler online: "..jsonData.players.now.."\n"
     end
     if (jsonData.players.sample ~= nil and jsonData.players.sample ~= false) then
-      responseText = responseText.."  Players: "..table.concat(jsonData.players.sample, ", ").."\n"
+      responseText = responseText.."  Spieler: "..table.concat(jsonData.players.sample, ", ").."\n"
     end
-  end
-  if (jsonData.favicon ~= nil and false) then
-    --send_photo(receiver, jsonData.favicon) --(decode base64 and send)
+	if (jsonData.server.name ~= nil and jsonData.server.name ~= "") then
+      responseText = responseText.."  Server: "..jsonData.server.name.."\n"
+    end
   end
   return responseText
 end
@@ -58,7 +63,7 @@ local function parseText(chat, text)
   if (ip ~= nil) then
     return mineSearch(ip, "25565", chat)
   end
-  return "ERROR: no input ip?"
+  return "FEHLER: Keine Input IP??"
 end
 
 
@@ -69,7 +74,7 @@ local function run(msg, matches)
 end
 
 return {
-  description = "Searches Minecraft server and sends info",
+  description = "Dursucht Minecraft-Server und sendet Infos",
   usage = usage,
   patterns = {
     "^!mine (.*)$"

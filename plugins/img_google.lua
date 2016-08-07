@@ -1,122 +1,88 @@
-do
-local mime = require("mime")
+local _blacklist
 
-local google_config = load_from_file('data/google.lua')
-local cache = {}
+local function getGoogleImage(text)
+  local apikey = cred_data.google_apikey
+  local cseid = cred_data.google_cse_id
+  local url = 'https://www.googleapis.com/customsearch/v1?cx='..cseid..'&key='..apikey..'&searchType=image&num=10&fields=items(link)&safe=high&q='..URL.escape(text)
+  local res, code = https.request(url)
+  if code == 403 then return 'QUOTAEXCEEDED' end
+  if code ~= 200 then return nil end
 
---[[
-local function send_request(url)
-  local t = {}
-  local options = {
-    url = url,
-    sink = ltn12.sink.table(t),
-    method = "GET"
-  }
-  local a, code, headers, status = http.request(options)
-  return table.concat(t), code, headers, status
-end]]--
-
-local function get_google_data(text)
-  local url = "http://ajax.googleapis.com/ajax/services/search/images?"
-  url = url.."v=1.0&rsz=5"
-  url = url.."&q="..URL.escape(text)
-  url = url.."&imgsz=small|medium|large"
-  if google_config.api_keys then
-    local i = math.random(#google_config.api_keys)
-    local api_key = google_config.api_keys[i]
-    if api_key then
-      url = url.."&key="..api_key
-    end
-  end
-
-  local res, code = http.request(url)
-  
-  if code ~= 200 then 
-    print("HTTP Error code:", code)
-    return nil 
-  end
-  
-  local google = json:decode(res)
+  local google = json:decode(res).items
   return google
 end
 
--- Returns only the useful google data to save on cache
-local function simple_google_table(google)
-  local new_table = {}
-  new_table.responseData = {}
-  new_table.responseDetails = google.responseDetails
-  new_table.responseStatus = google.responseStatus
-  new_table.responseData.results = {}
-  local results = google.responseData.results
-  for k,result in pairs(results) do
-    new_table.responseData.results[k] = {}
-    new_table.responseData.results[k].unescapedUrl = result.unescapedUrl
-    new_table.responseData.results[k].url = result.url
+local function cache_google_image(results, text)
+  local cache = {}
+  for v in pairs(results) do
+    table.insert(cache, results[v].link)
   end
-  return new_table
-end
-
-local function save_to_cache(query, data)
-  -- Saves result on cache
-  if string.len(query) <= 7 then
-    local text_b64 = mime.b64(query)
-    if not cache[text_b64] then
-      local simple_google = simple_google_table(data)
-      cache[text_b64] = simple_google
-    end
-  end
-end
-
-local function process_google_data(google, receiver, query)
-  if google.responseStatus == 403 then
-    local text = 'ERROR: Reached maximum searches per day'
-    send_msg(receiver, text, ok_cb, false)
-
-  elseif google.responseStatus == 200 then
-    local data = google.responseData
-
-    if not data or not data.results or #data.results == 0 then
-      local text = 'Image not found.'
-      send_msg(receiver, text, ok_cb, false)
-      return false
-    end
-
-    -- Random image from table
-    local i = math.random(#data.results)
-    local url = data.results[i].unescapedUrl or data.results[i].url
-    local old_timeout = http.TIMEOUT or 10
-    http.TIMEOUT = 5
-    send_photo_from_url(receiver, url)
-    http.TIMEOUT = old_timeout
-
-    save_to_cache(query, google)
-  
-  else
-    local text = 'ERROR!'
-    send_msg(receiver, text, ok_cb, false)
-  end
+  cache_data('img_google', string.lower(text), cache, 1209600, 'set')
 end
 
 function run(msg, matches)
   local receiver = get_receiver(msg)
-  local text = matches[1]
-  local text_b64 = mime.b64(text)
-  local cached = cache[text_b64]
-  if cached then
-    process_google_data(cached, receiver, text)
-  else
-    local data = get_google_data(text)    
-    process_google_data(data, receiver, text)
+  local text = matches[1]  
+  
+  print ('Checking if search contains blacklisted words: '..text)
+  if is_blacklisted(text) then
+    return "Vergiss es ._."
+  end
+  
+  local hash = 'telegram:cache:img_google:'..string.lower(text)
+  local results = redis:smembers(hash)
+  if not results[1] then
+    print('doing web request')
+    results = getGoogleImage(text)
+	if results == 'QUOTAEXCEEDED' then
+	  return 'Kontingent für heute erreicht - nur noch gecachte Suchanfragen möglich (oder !bingimg <Suchbegriff>).'
+	end
+    if not results then
+      return "Kein Bild gefunden!"
+    end
+    cache_google_image(results, text)
+  end
+  -- Random image from table
+  local i = math.random(#results)
+  local url = nil
+  
+  local failed = true
+  local nofTries = 0
+  while failed and nofTries < #results do 
+      if not results[i].link then
+        url = results[i]
+	  else
+	    url = results[i].link
+	  end
+	  print("Bilder-URL: ", url)
+	  
+	  if string.ends(url, ".gif") then
+		failed = not send_document_from_url(receiver, url, nil, nil, true)
+	  elseif string.ends(url, ".jpg") or string.ends(url, ".jpeg") or string.ends(url, ".png") then
+		failed = not send_photo_from_url(receiver, url, nil, nil, true)
+	  end
+	  
+	  nofTries = nofTries + 1
+	  i = i+1
+	  if i > #results then
+		i = 1
+	  end 
+  end
+  
+  if failed then
+	  return "Fehler beim Herunterladen eines Bildes."
   end
 end
 
 return {
-  description = "Search image with Google API and sends it.", 
-  usage = "!img [term]: Random search an image with Google API.",
+  description = "Sucht Bild mit Google-API und versendet es (SafeSearch aktiv)", 
+  usage = {
+    "!img [Suchbegriff]"
+  },
   patterns = {
-    "^!img (.*)$"
+    "^!img (.*)$",
+    "^!googleimg (.*)$"
   }, 
-  run = run
+  run = run 
 }
-
 end

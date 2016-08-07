@@ -1,17 +1,17 @@
-do
 
 function run(msg, matches)
-  return "Hello, " .. matches[1]
+  return "Hallo, " .. matches[1]
 end
 
 return {
-  description = "Says hello to someone", 
-  usage = "say hello to [name]",
+  description = "Sagt zu jemandem Hallo", 
+  usage = "sag Hallo zu [Name]",
   patterns = {
     "^say hello to (.*)$",
-    "^Say hello to (.*)$"
+    "^Say hello to (.*)$",
+	"^Sag Hallo zu (.*)$",
+	"^sag Hallo zu (.*)$",
+	"^sag hallo zu (.*)$"
   }, 
   run = run 
 }
-
-end

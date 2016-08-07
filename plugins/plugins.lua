@@ -1,8 +1,8 @@
 do
 
 -- Returns the key (index) in the config.enabled_plugins table
-local function plugin_enabled( name )
-  for k,v in pairs(_config.enabled_plugins) do
+local function plugin_enabled( name, chat )
+  for k,v in pairs(enabled_plugins) do
     if name == v then
       return k
     end
@@ -27,7 +27,7 @@ local function list_plugins(only_enabled)
     --  ✔ enabled, ❌ disabled
     local status = '❌'
     -- Check if is enabled
-    for k2, v2 in pairs(_config.enabled_plugins) do
+    for k2, v2 in pairs(enabled_plugins) do
       if v == v2..'.lua' then 
         status = '✔' 
       end
@@ -41,10 +41,14 @@ local function list_plugins(only_enabled)
   return text
 end
 
-local function reload_plugins( )
+local function reload_plugins(plugin_name, status)
   plugins = {}
   load_plugins()
-  return list_plugins(true)
+  if plugin_name then
+    return 'Plugin '..plugin_name..' wurde '..status
+  else
+    return 'Plugins neu geladen'
+  end
 end
 
 
@@ -52,72 +56,78 @@ local function enable_plugin( plugin_name )
   print('checking if '..plugin_name..' exists')
   -- Check if plugin is enabled
   if plugin_enabled(plugin_name) then
-    return 'Plugin '..plugin_name..' is enabled'
+    return 'Plugin '..plugin_name..' ist schon aktiviert'
   end
   -- Checks if plugin exists
   if plugin_exists(plugin_name) then
-    -- Add to the config table
-    table.insert(_config.enabled_plugins, plugin_name)
-    print(plugin_name..' added to _config table')
-    save_config()
+    -- Add to redis set
+    redis:sadd('telegram:enabled_plugins', plugin_name)
+	print(plugin_name..' saved to redis set telegram:enabled_plugins')
     -- Reload the plugins
-    return reload_plugins( )
+    return reload_plugins(plugin_name, 'aktiviert')
   else
-    return 'Plugin '..plugin_name..' does not exists'
+    return 'Plugin '..plugin_name..' existiert nicht'
   end
 end
 
 local function disable_plugin( name, chat )
   -- Check if plugins exists
   if not plugin_exists(name) then
-    return 'Plugin '..name..' does not exists'
+    return 'Plugin '..name..' existiert nicht'
   end
   local k = plugin_enabled(name)
   -- Check if plugin is enabled
   if not k then
-    return 'Plugin '..name..' not enabled'
+    return 'Plugin '..name..' ist nicht aktiviert'
   end
   -- Disable and reload
-  table.remove(_config.enabled_plugins, k)
-  save_config( )
-  return reload_plugins(true)    
+    redis:srem('telegram:enabled_plugins', name)
+	print(name..' saved to redis set telegram:enabled_plugins')
+  return reload_plugins(name, 'deaktiviert')    
 end
 
-local function disable_plugin_on_chat(receiver, plugin)
+local function disable_plugin_on_chat(msg, plugin)
   if not plugin_exists(plugin) then
-    return "Plugin doesn't exists"
+    return "Plugin existiert nicht!"
   end
-
-  if not _config.disabled_plugin_on_chat then
-    _config.disabled_plugin_on_chat = {}
+  
+  if not msg.to then
+    hash = 'chat:'..msg..':disabled_plugins'
+  else
+    hash = get_redis_hash(msg, 'disabled_plugins')
   end
+  local disabled = redis:hget(hash, plugin)
 
-  if not _config.disabled_plugin_on_chat[receiver] then
-    _config.disabled_plugin_on_chat[receiver] = {}
+  if disabled ~= 'true' then
+    print('Setting '..plugin..' in redis hash '..hash..' to true')
+    redis:hset(hash, plugin, true)
+	return 'Plugin '..plugin..' für diesen Chat deaktiviert.'
+  else
+    return 'Plugin '..plugin..' wurde für diesen Chat bereits deaktiviert.'
   end
-
-  _config.disabled_plugin_on_chat[receiver][plugin] = true
-
-  save_config()
-  return 'Plugin '..plugin..' disabled on this chat'
 end
 
-local function reenable_plugin_on_chat(receiver, plugin)
-  if not _config.disabled_plugin_on_chat then
-    return 'There aren\'t any disabled plugins'
+local function reenable_plugin_on_chat(msg, plugin)
+  if not plugin_exists(plugin) then
+    return "Plugin existiert nicht!"
   end
-
-  if not _config.disabled_plugin_on_chat[receiver] then
-    return 'There aren\'t any disabled plugins for this chat'
+  
+  if not msg.to then
+    hash = 'chat:'..msg..':disabled_plugins'
+  else
+    hash = get_redis_hash(msg, 'disabled_plugins')
   end
+  local disabled = redis:hget(hash, plugin)
+  
+  if disabled == nil then return 'Es gibt keine deaktivierten Plugins für disen Chat.' end
 
-  if not _config.disabled_plugin_on_chat[receiver][plugin] then
-    return 'This plugin is not disabled'
+  if disabled == 'true' then
+    print('Setting '..plugin..' in redis hash '..hash..' to false')
+    redis:hset(hash, plugin, false)
+	return 'Plugin '..plugin..' wurde für diesen Chat reaktiviert.'
+  else
+    return 'Plugin '..plugin..' ist nicht deaktiviert.'
   end
-
-  _config.disabled_plugin_on_chat[receiver][plugin] = false
-  save_config()
-  return 'Plugin '..plugin..' is enabled again'
 end
 
 local function run(msg, matches)
@@ -126,12 +136,17 @@ local function run(msg, matches)
     return list_plugins()
   end
 
-  -- Re-enable a plugin for this chat
+  -- Reenable a plugin for this chat
   if matches[1] == 'enable' and matches[3] == 'chat' then
-    local receiver = get_receiver(msg)
     local plugin = matches[2]
-    print("enable "..plugin..' on this chat')
-    return reenable_plugin_on_chat(receiver, plugin)
+	if matches[4] then 
+	  local id = matches[4]
+      print("enable "..plugin..' on chat#id'..id)
+      return reenable_plugin_on_chat(id, plugin)
+	else
+      print("enable "..plugin..' on this chat')
+      return reenable_plugin_on_chat(msg, plugin)
+    end
   end
 
   -- Enable a plugin
@@ -144,9 +159,14 @@ local function run(msg, matches)
   -- Disable a plugin on a chat
   if matches[1] == 'disable' and matches[3] == 'chat' then
     local plugin = matches[2]
-    local receiver = get_receiver(msg)
-    print("disable "..plugin..' on this chat')
-    return disable_plugin_on_chat(receiver, plugin)
+	if matches[4] then 
+	  local id = matches[4]
+      print("disable "..plugin..' on chat#id'..id)
+      return disable_plugin_on_chat(id, plugin)
+	else
+      print("disable "..plugin..' on this chat')
+      return disable_plugin_on_chat(msg, plugin)
+    end
   end
 
   -- Disable a plugin
@@ -157,25 +177,33 @@ local function run(msg, matches)
 
   -- Reload all the plugins!
   if matches[1] == 'reload' then
-    return reload_plugins(true)
+    return reload_plugins()
   end
 end
 
 return {
-  description = "Plugin to manage other plugins. Enable, disable or reload.", 
+  description = "Aktiviert, deaktiviert und lädt Plugins (nur Superuser)", 
   usage = {
-    "!plugins: list all plugins.", 
-    "!plugins enable [plugin]: enable plugin.",
-    "!plugins disable [plugin]: disable plugin.",
-    "!plugins disable [plugin] chat: disable plugin only this chat.",
-    "!plugins reload: reloads all plugins." },
+    "!plugins: Liste alle Plugins auf.", 
+    "!plugins enable [plugin]: Aktiviert Plugin.",
+    "!plugins disable [plugin]: Deaktiviert Plugin.",
+    "!plugins enable [plugin] chat: Aktiviert Plugin in diesem Chat.",
+    "!plugins enable [plugin] chat <ID>: Aktiviert Plugin in Chat <ID>.",
+    "!plugins disable [plugin] chat: Deaktiviert Plugin in diesem Chat.",
+    "!plugins disable [plugin] chat <ID>: Deaktiviert Plugin in Chat <ID>.",
+    "!plugins reload/!reload: Lädt alle Plugins neu."
+  },
   patterns = {
     "^!plugins$",
     "^!plugins? (enable) ([%w_%.%-]+)$",
     "^!plugins? (disable) ([%w_%.%-]+)$",
+    "^!plugins? (enable) ([%w_%.%-]+) (chat) (%d+)",
     "^!plugins? (enable) ([%w_%.%-]+) (chat)",
-    "^!plugins? (disable) ([%w_%.%-]+) (chat)",
-    "^!plugins? (reload)$" },
+	"^!plugins? (disable) ([%w_%.%-]+) (chat) (%d+)",
+	"^!plugins? (disable) ([%w_%.%-]+) (chat)",
+    "^!plugins? (reload)$",
+	"^!(reload)$"
+	}, 
   run = run,
   privileged = true
 }

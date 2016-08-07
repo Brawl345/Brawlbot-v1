@@ -6,9 +6,11 @@ local function getBTCX(amount,currency)
   
   if code ~= 200 then return nil end
   local data = json:decode(res)
+  local ask = string.gsub(data.ask, "%.", "%,")
+  local bid = string.gsub(data.bid, "%.", "%,")
 
   -- Easy, it's right there
-  text = "BTC/"..currency..'\n'..'Buy: '..data.ask..'\n'..'Sell: '..data.bid
+  text = "BTC/"..currency..'\n'..'Kaufen: '..ask..'\n'..'Verkaufen: '..bid
   
   -- If we have a number as second parameter, calculate the bitcoin amount
   if amount~=nil then
@@ -39,10 +41,13 @@ local function run(msg, matches)
 end
 
 return {
-  description = "Bitcoin global average market value (in EUR or USD)", 
-  usage = "!btc [EUR|USD] [amount]",
+  description = "Globaler Bitcoin-Wert (in EUR oder USD)",
+  usage = {
+    "!btc: Zeigt aktuellen Bitcoin-Kurs",
+	"!btc [EUR|USD] [Menge]: Rechnet Bitcoin in Euro/USD um"
+  },
   patterns = {
-    "^!btc$",
+	"^!btc$",
     "^!btc ([Ee][Uu][Rr])$",
     "^!btc ([Uu][Ss][Dd])$",
     "^!btc (EUR) (%d+[%d%.]*)$",
@@ -50,3 +55,4 @@ return {
   }, 
   run = run 
 }
+

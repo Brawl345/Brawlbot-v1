@@ -5,7 +5,7 @@ cd $THIS_DIR
 
 update() {
   git pull
-  git submodule update --init --recursive
+  cd tg && git pull
   install_rocks
 }
 
@@ -13,7 +13,7 @@ update() {
 install_luarocks() {
   git clone https://github.com/keplerproject/luarocks.git
   cd luarocks
-  git checkout tags/v2.2.1 # Current stable
+  git checkout tags/v2.3.0 # Current stable
 
   PREFIX="$THIS_DIR/.luarocks"
 
@@ -33,16 +33,6 @@ install_luarocks() {
 }
 
 install_rocks() {
-  ./.luarocks/bin/luarocks install luasec
-  RET=$?; if [ $RET -ne 0 ];
-    then echo "Error. Exiting."; exit $RET;
-  fi
-
-  ./.luarocks/bin/luarocks install lbase64 20120807-3
-  RET=$?; if [ $RET -ne 0 ];
-    then echo "Error. Exiting."; exit $RET;
-  fi
-
   ./.luarocks/bin/luarocks install luasocket
   RET=$?; if [ $RET -ne 0 ];
     then echo "Error. Exiting."; exit $RET;
@@ -77,8 +67,13 @@ install_rocks() {
   RET=$?; if [ $RET -ne 0 ];
     then echo "Error. Exiting."; exit $RET;
   fi
-
+  
   ./.luarocks/bin/luarocks install serpent
+  RET=$?; if [ $RET -ne 0 ];
+    then echo "Error. Exiting."; exit $RET;
+  fi
+  
+  ./.luarocks/bin/luarocks install sha1
   RET=$?; if [ $RET -ne 0 ];
     then echo "Error. Exiting."; exit $RET;
   fi
@@ -86,17 +81,16 @@ install_rocks() {
 
 install() {
   git pull
-  git submodule update --init --recursive
-  patch -i "patches/disable-python-and-libjansson.patch" -p 0 --batch --forward
-  RET=$?;
-
-  cd tg
-  if [ $RET -ne 0 ]; then
-    autoconf -i
-  fi
-  ./configure && make
-
+  git clone https://github.com/vysheng/tg.git
+  cd tg && ./configure && make
+  
   RET=$?; if [ $RET -ne 0 ]; then
+    echo "Trying without Python...";
+    ./configure --disable-python && make
+    RET=$?
+  fi
+  
+  if [ $RET -ne 0 ]; then
     echo "Error. Exiting."; exit $RET;
   fi
   cd ..
@@ -121,5 +115,6 @@ else
     exit 1
   fi
 
-  ./tg/bin/telegram-cli -k ./tg/tg-server.pub -s ./bot/bot.lua -l 1 -E $@
+  ./tg/bin/telegram-cli -k ./tg/tg-server.pub -s ./bot/bot.lua -l 1 -E --disable-link-preview $@
+# ./tg/bin/telegram-cli -k ./tg/tg-server.pub -s ./bot/bot.lua -l 1 -E
 fi

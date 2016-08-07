@@ -3,13 +3,12 @@ http = require "socket.http"
 https = require "ssl.https"
 ltn12 = require "ltn12"
 serpent = require "serpent"
-feedparser = require "feedparser"
 
 json = (loadfile "./libs/JSON.lua")()
 mimetype = (loadfile "./libs/mimetype.lua")()
 redis = (loadfile "./libs/redis.lua")()
 
-http.TIMEOUT = 10
+http.TIMEOUT = 8
 
 function get_receiver(msg)
   if msg.to.type == 'user' then
@@ -20,7 +19,7 @@ function get_receiver(msg)
   end
   if msg.to.type == 'encr_chat' then
     return msg.to.print_name
-  end
+ end
 end
 
 function is_chat_msg( msg )
@@ -46,45 +45,41 @@ function string:split(sep)
   return fields
 end
 
--- DEPRECATED
+-- Removes spaces
 function string.trim(s)
-  print("string.trim(s) is DEPRECATED use string:trim() instead")
   return s:gsub("^%s*(.-)%s*$", "%1")
 end
 
--- Removes spaces
-function string:trim()
-  return self:gsub("^%s*(.-)%s*$", "%1")
-end
-
 function get_http_file_name(url, headers)
-  -- Eg: foo.var
+  -- Eg: fooo.var
   local file_name = url:match("[^%w]+([%.%w]+)$")
-  -- Any delimited alphanumeric on the url
+  -- Any delimited aphanumeric on the url
   file_name = file_name or url:match("[^%w]+(%w+)[^%w]+$")
   -- Random name, hope content-type works
   file_name = file_name or str:random(5)
 
-  local content_type = headers["content-type"]
-
+  local content_type = headers["content-type"] 
+  
   local extension = nil
   if content_type then
-    extension = mimetype.get_mime_extension(content_type)
+    extension = mimetype.get_mime_extension(content_type) 
   end
+
   if extension then
     file_name = file_name.."."..extension
   end
-
+  
   local disposition = headers["content-disposition"]
   if disposition then
     -- attachment; filename=CodeCogsEqn.png
     file_name = disposition:match('filename=([^;]+)') or file_name
+	file_name = string.gsub(file_name, "\"", "")
   end
-
+  
   return file_name
 end
 
---  Saves file to /tmp/. If file_name isn't provided,
+-- Saves file to $HOME/tmp/. If file_name isn't provided,
 -- will get the text after the last "/" for filename
 -- and content-type for extension
 function download_to_file(url, file_name)
@@ -95,7 +90,7 @@ function download_to_file(url, file_name)
     url = url,
     sink = ltn12.sink.table(respbody),
     redirect = true
-  }
+ }
 
   -- nil, code, headers, status
   local response = nil
@@ -115,8 +110,8 @@ function download_to_file(url, file_name)
 
   file_name = file_name or get_http_file_name(url, headers)
 
-  local file_path = "/tmp/"..file_name
-  print("Saved to: "..file_path)
+ local file_path = "/home/wiidb/tmp/telegram-bot/"..file_name
+ print("Saved to: "..file_path)
 
   file = io.open(file_path, "w+")
   file:write(table.concat(respbody))
@@ -124,6 +119,7 @@ function download_to_file(url, file_name)
 
   return file_path
 end
+
 
 function vardump(value)
   print(serpent.block(value, {comment=false}))
@@ -147,25 +143,24 @@ function run_command(str)
   return result
 end
 
--- User has privileges
 function is_sudo(msg)
-  local var = false
-  -- Check users id in config
-  for v,user in pairs(_config.sudo_users) do
-    if user == msg.from.id then
-      var = true
-    end
-  end
-  return var
+   local var = false
+   -- Check if user id is in sudoers table
+   for v,user in pairs(sudo_users) do
+      if string.match(user, msg.from.id) then 
+         var = true
+      end
+   end
+   return var
 end
 
 -- Returns the name of the sender
 function get_name(msg)
-  local name = msg.from.first_name
-  if name == nil then
-    name = msg.from.id
-  end
-  return name
+   local name = msg.from.first_name
+   if name == nil then
+      name = msg.from.id
+   end
+   return name
 end
 
 -- Returns at table of lua files inside plugins
@@ -175,7 +170,7 @@ function plugins_names( )
     -- Ends with .lua
     if (v:match(".lua$")) then
       table.insert(files, v)
-    end
+    end 
   end
   return files
 end
@@ -183,11 +178,11 @@ end
 -- Function name explains what it does.
 function file_exists(name)
   local f = io.open(name,"r")
-  if f ~= nil then
-    io.close(f)
-    return true
-  else
-    return false
+  if f ~= nil then 
+    io.close(f) 
+    return true 
+  else 
+    return false 
   end
 end
 
@@ -198,9 +193,9 @@ function serialize_to_file(data, file, uglify)
   local serialized
   if not uglify then
     serialized = serpent.block(data, {
-        comment = false,
-        name = '_'
-      })
+      comment = false,
+      name = '_'
+    })
   else
     serialized = serpent.dump(data)
   end
@@ -208,24 +203,23 @@ function serialize_to_file(data, file, uglify)
   file:close()
 end
 
--- Returns true if the string is empty
+-- Retruns true if the string is empty
 function string:isempty()
   return self == nil or self == ''
 end
 
--- Returns true if the string is blank
+-- Retruns true if the string is blank
 function string:isblank()
   self = self:trim()
   return self:isempty()
 end
 
--- DEPRECATED!!!!!
+-- Returns true if String starts with Start
 function string.starts(String, Start)
-  print("string.starts(String, Start) is DEPRECATED use string:starts(text) instead")
-  return Start == string.sub(String,1,string.len(Start))
+   return Start == string.sub(String,1,string.len(Start))
 end
 
--- Returns true if String starts with Start
+-- DEPRECATED!!!!!
 function string:starts(text)
   return text == string.sub(self,1,string.len(text))
 end
@@ -244,29 +238,34 @@ end
 
 -- Download the image and send to receiver, it will be deleted.
 -- cb_function and cb_extra are optionals callback
-function send_photo_from_url(receiver, url, cb_function, cb_extra)
+function send_photo_from_url(receiver, url, cb_function, cb_extra, sendNotErrMsg)
   -- If callback not provided
   cb_function = cb_function or ok_cb
   cb_extra = cb_extra or false
 
-  local file_path = download_to_file(url, false)
-  if not file_path then -- Error
-    local text = 'Error downloading the image'
-    send_msg(receiver, text, cb_function, cb_extra)
+  local file_path = download_to_file(url, false) 
+  if not file_path then  -- Error
+    if sendNotErrMsg then
+	  return false
+	else
+	  local text = 'Fehler beim Herunterladen des Bildes'
+      send_msg(receiver, text, cb_function, cb_extra)
+	end
   else
     print("File path: "..file_path)
     _send_photo(receiver, file_path, cb_function, cb_extra)
+	return true
   end
 end
 
 -- Same as send_photo_from_url but as callback function
-function send_photo_from_url_callback(cb_extra, success, result)
+function send_photo_from_url_callback(cb_extra, success, result, sendErrMsg)
   local receiver = cb_extra.receiver
   local url = cb_extra.url
-
+  
   local file_path = download_to_file(url, false)
   if not file_path then -- Error
-    local text = 'Error downloading the image'
+    local text = 'Fehler beim Herunterladen des Bildes'
     send_msg(receiver, text, ok_cb, false)
   else
     print("File path: "..file_path)
@@ -274,7 +273,23 @@ function send_photo_from_url_callback(cb_extra, success, result)
   end
 end
 
---  Send multiple images asynchronous.
+
+-- Same as above, but with send_as_document
+function send_document_from_url_callback(cb_extra, success, result)
+  local receiver = cb_extra.receiver
+  local url = cb_extra.url
+  
+  local file_path = download_to_file(url, false)
+  if not file_path then -- Error
+    local text = 'Fehler beim Herunterladen des Dokumentes'
+    send_msg(receiver, text, ok_cb, false)
+  else
+    print("File path: "..file_path)
+    _send_document(receiver, file_path, ok_cb, false)
+  end
+end
+
+--  Send multimple images asynchronous.
 -- param urls must be a table.
 function send_photos_from_url(receiver, urls)
   local cb_extra = {
@@ -285,8 +300,8 @@ function send_photos_from_url(receiver, urls)
   send_photos_from_url_callback(cb_extra)
 end
 
--- Use send_photos_from_url.
--- This function might be difficult to understand.
+-- Use send_photos_from_url. 
+-- This fuction might be difficult to understand.
 function send_photos_from_url_callback(cb_extra, success, result)
   -- cb_extra is a table containing receiver, urls and remove_path
   local receiver = cb_extra.receiver
@@ -328,7 +343,7 @@ function rmtmp_cb(cb_extra, success, result)
     os.remove(file_path)
     print("Deleted: "..file_path)
   end
-  -- Finally call the callback
+  -- Finaly call the callback
   cb_function(cb_extra, success, result)
 end
 
@@ -344,12 +359,26 @@ function _send_document(receiver, file_path, cb_function, cb_extra)
   send_document(receiver, file_path, rmtmp_cb, cb_extra)
 end
 
--- Download the image and send to receiver, it will be deleted.
+-- Download the document and send to receiver, it will be deleted.
 -- cb_function and cb_extra are optionals callback
-function send_document_from_url(receiver, url, cb_function, cb_extra)
+function send_document_from_url(receiver, url, cb_function, cb_extra, sendNotErrMsg)
+  -- If callback not provided
+  cb_function = cb_function or ok_cb
+  cb_extra = cb_extra or false
+  
   local file_path = download_to_file(url, false)
-  print("File path: "..file_path)
-  _send_document(receiver, file_path, cb_function, cb_extra)
+  if not file_path then  -- Error
+    if sendNotErrMsg then
+	  return false
+	else
+	  local text = 'Fehler beim Herunterladen des Dokumentes'
+      send_msg(receiver, text, cb_function, cb_extra)
+	end
+  else
+    print("File path: "..file_path)
+    _send_document(receiver, file_path, cb_function, cb_extra)
+	return true
+  end
 end
 
 -- Parameters in ?a=1&b=2 style
@@ -375,7 +404,7 @@ end
 -- Returns true if user was warned and false if not warned (is allowed)
 function warns_user_not_allowed(plugin, msg)
   if not user_allowed(plugin, msg) then
-    local text = 'This plugin requires privileged user'
+    local text = 'Du bist kein Superuser. Dieser Vorfall wird gemeldet.'
     local receiver = get_receiver(msg)
     send_msg(receiver, text, ok_cb, false)
     return true
@@ -392,57 +421,7 @@ function user_allowed(plugin, msg)
   return true
 end
 
-
-function send_order_msg(destination, msgs)
-   local cb_extra = {
-      destination = destination,
-      msgs = msgs
-   }
-   send_order_msg_callback(cb_extra, true)
-end
-
-function send_order_msg_callback(cb_extra, success, result)
-   local destination = cb_extra.destination
-   local msgs = cb_extra.msgs
-   local file_path = cb_extra.file_path
-   if file_path ~= nil then
-      os.remove(file_path)
-      print("Deleted: " .. file_path)
-   end
-   if type(msgs) == 'string' then
-      send_large_msg(destination, msgs)
-   elseif type(msgs) ~= 'table' then
-      return
-   end
-   if #msgs < 1 then
-      return
-   end
-   local msg = table.remove(msgs, 1)
-   local new_cb_extra = {
-      destination = destination,
-      msgs = msgs
-   }
-   if type(msg) == 'string' then
-      send_msg(destination, msg, send_order_msg_callback, new_cb_extra)
-   elseif type(msg) == 'table' then
-      local typ = msg[1]
-      local nmsg = msg[2]
-      new_cb_extra.file_path = nmsg
-      if typ == 'document' then
-         send_document(destination, nmsg, send_order_msg_callback, new_cb_extra)
-      elseif typ == 'image' or typ == 'photo' then
-         send_photo(destination, nmsg, send_order_msg_callback, new_cb_extra)
-      elseif typ == 'audio' then
-         send_audio(destination, nmsg, send_order_msg_callback, new_cb_extra)
-      elseif typ == 'video' then
-         send_video(destination, nmsg, send_order_msg_callback, new_cb_extra)
-      else
-         send_file(destination, nmsg, send_order_msg_callback, new_cb_extra)
-      end
-   end
-end
-
--- Same as send_large_msg_callback but friendly params
+-- Same as send_large_msg_callback but frienly params
 function send_large_msg(destination, text)
   local cb_extra = {
     destination = destination,
@@ -454,7 +433,7 @@ end
 -- If text is longer than 4096 chars, send multiple msg.
 -- https://core.telegram.org/method/messages.sendMessage
 function send_large_msg_callback(cb_extra, success, result)
-  local text_max = 4096
+  local text_max = 4095
 
   local destination = cb_extra.destination
   local text = cb_extra.text
@@ -465,8 +444,8 @@ function send_large_msg_callback(cb_extra, success, result)
     send_msg(destination, text, ok_cb, false)
   else
 
-    local my_text = string.sub(text, 1, 4096)
-    local rest = string.sub(text, 4096, text_len)
+    local my_text = string.sub(text, 1, 4095)
+    local rest = string.sub(text, 4095, text_len)
 
     local cb_extra = {
       destination = destination,
@@ -478,19 +457,19 @@ function send_large_msg_callback(cb_extra, success, result)
 end
 
 -- Returns a table with matches or nil
-function match_pattern(pattern, text, lower_case)
+--function match_pattern(pattern, text, lower_case)
+function match_pattern(pattern, text)
   if text then
-    local matches = {}
-    if lower_case then
-      matches = { string.match(text:lower(), pattern) }
-    else
-      matches = { string.match(text, pattern) }
-    end
-      if next(matches) then
-        return matches
-      end
+    local matches = { string.match(text, pattern) }
+    if next(matches) then
+      return matches
+	end
   end
   -- nil
+end
+
+function sleep(n)
+  os.execute("sleep " .. tonumber(n))
 end
 
 -- Function to read data from files
@@ -509,6 +488,32 @@ function load_from_file(file, default_data)
   return loadfile (file)()
 end
 
+function round(num, idp)
+  if idp and idp>0 then
+    local mult = 10^idp
+    return math.floor(num * mult + 0.5) / mult
+  end
+  return math.floor(num + 0.5)
+end
+
+function unescape(str)
+  str = string.gsub( str, '&lt;', '<' )
+  str = string.gsub( str, '&gt;', '>' )
+  str = string.gsub( str, '&quot;', '"' )
+  str = string.gsub( str, '&apos;', "'" )
+  str = string.gsub( str, "&Auml;", "Ä")
+  str = string.gsub( str, "&auml;", "ä")
+  str = string.gsub( str, "&Ouml;", "Ö")
+  str = string.gsub( str, "&ouml;", "ö")
+  str = string.gsub( str, "Uuml;", "Ü")
+  str = string.gsub( str, "&uuml;", "ü")
+  str = string.gsub( str, "&szlig;", "ß")
+  str = string.gsub( str, '&#(%d+);', function(n) return string.char(n) end )
+  str = string.gsub( str, '&#x(%d+);', function(n) return string.char(tonumber(n,16)) end )
+  str = string.gsub( str, '&amp;', '&' ) -- Be sure to do this after all others
+  return str
+end
+
 -- See http://stackoverflow.com/a/14899740
 function unescape_html(str)
   local map = { 
@@ -525,4 +530,212 @@ function unescape_html(str)
     return var
   end)
   return new
+end
+
+function post_petition(url, arguments, headers)
+   local url, h = string.gsub(url, "http://", "")
+   local url, hs = string.gsub(url, "https://", "")
+   local post_prot = "http"
+   if hs == 1 then
+      post_prot = "https"
+   end
+   local response_body = {}
+   local request_constructor = {
+      url = post_prot..'://'..url,
+      method = "POST",
+      sink = ltn12.sink.table(response_body),
+      headers = headers or {},
+      redirect = false
+   }
+
+   local source = arguments
+   if type(arguments) == "table" then
+      local source = helpers.url_encode_arguments(arguments)
+   end
+   
+   if not headers then
+     request_constructor.headers["Content-Type"] = "application/x-www-form-urlencoded; charset=UTF8"
+     request_constructor.headers["X-Accept"] = "application/json"
+	 request_constructor.headers["Accept"] = "application/json"
+   end
+   request_constructor.headers["Content-Length"] = tostring(#source)
+   request_constructor.source = ltn12.source.string(source)
+   
+   if post_prot == "http" then
+     ok, response_code, response_headers, response_status_line = http.request(request_constructor)
+   else
+     ok, response_code, response_headers, response_status_line = https.request(request_constructor)
+   end
+
+   if not ok then
+      return nil
+   end
+
+   response_body = json:decode(table.concat(response_body))
+
+   return response_body, response_headers
+end
+
+function get_redis_hash(msg, var)
+  if msg.to.type == 'chat' then
+    return 'chat:'..msg.to.id..':'..var
+  end
+  if msg.to.type == 'user' then
+    return 'user:'..msg.from.id..':'..var
+  end
+end
+
+function tablelength(T)
+  local count = 0
+  for _ in pairs(T) do count = count + 1 end
+  return count
+end
+
+function comma_value(amount)
+  local formatted = amount
+  while true do  
+    formatted, k = string.gsub(formatted, "^(-?%d+)(%d%d%d)", '%1.%2')
+    if (k==0) then
+      break
+    end
+  end
+  return formatted
+end
+
+
+function string.ends(str, fin)
+  return fin=='' or string.sub(str,-string.len(fin)) == fin
+end
+
+function get_location(user_id)
+  local hash = 'user:'..user_id
+  local set_location = redis:hget(hash, 'location')
+  if set_location == 'false' or set_location == nil then
+    return false
+  else
+    return set_location
+  end
+end
+
+function cache_data(plugin, query, data, timeout, typ)
+  -- How to: cache_data(pluginname, query_name, data_to_cache, expire_in_seconds)
+  local hash = 'telegram:cache:'..plugin..':'..query
+  if timeout then
+    print('Caching "'..query..'" from plugin '..plugin..' (expires in '..timeout..' seconds)')
+  else
+    print('Caching "'..query..'" from plugin '..plugin..' (expires never)')
+  end
+  if typ == 'key' then
+    redis:set(hash, data)
+  elseif typ == 'set' then
+    -- make sure that you convert your data into a table:
+	-- {"foo", "bar", "baz"} instead of
+	-- {"bar" = "foo", "foo" = "bar", "bar" = "baz"}
+	-- because other formats are not supported by redis (or I haven't found a way to store them)
+    for _,str in pairs(data) do
+	  redis:sadd(hash, str)
+	end
+  else
+    redis:hmset(hash, data)
+  end
+  if timeout then
+    redis:expire(hash, timeout)
+  end
+end
+
+--[[
+Ordered table iterator, allow to iterate on the natural order of the keys of a
+table.
+-- http://lua-users.org/wiki/SortedIteration
+]]
+
+function __genOrderedIndex( t )
+    local orderedIndex = {}
+    for key in pairs(t) do
+        table.insert( orderedIndex, key )
+    end
+    table.sort( orderedIndex )
+    return orderedIndex
+end
+
+function orderedNext(t, state)
+    -- Equivalent of the next function, but returns the keys in the alphabetic
+    -- order. We use a temporary ordered key table that is stored in the
+    -- table being iterated.
+
+    key = nil
+    --print("orderedNext: state = "..tostring(state) )
+    if state == nil then
+        -- the first time, generate the index
+        t.__orderedIndex = __genOrderedIndex( t )
+        key = t.__orderedIndex[1]
+    else
+        -- fetch the next value
+        for i = 1,table.getn(t.__orderedIndex) do
+            if t.__orderedIndex[i] == state then
+                key = t.__orderedIndex[i+1]
+            end
+        end
+    end
+
+    if key then
+        return key, t[key]
+    end
+
+    -- no more value to return, cleanup
+    t.__orderedIndex = nil
+    return
+end
+
+function orderedPairs(t)
+    -- Equivalent of the pairs() function on tables. Allows to iterate
+    -- in order
+    return orderedNext, t, nil
+end
+
+-- converts total amount of seconds (e.g. 65 seconds) to human redable time (e.g. 1:05 minutes)
+function makeHumanTime(totalseconds)
+  local seconds = totalseconds % 60
+  local minutes = math.floor(totalseconds / 60)
+  local minutes = minutes % 60
+  local hours = math.floor(totalseconds / 3600)
+  if minutes == 00 and hours == 00 then
+    return seconds..' Sekunden'
+  elseif hours == 00 and minutes ~= 00 then
+    return string.format("%02d:%02d", minutes, seconds)..' Minuten'
+  elseif hours ~= 00 then
+    return string.format("%02d:%02d:%02d", hours,  minutes, seconds)..' Stunden'
+  end
+end
+
+function is_blacklisted(msg)
+  _blacklist = redis:smembers("telegram:img_blacklist")
+  local var = false
+  for v,word in pairs(_blacklist) do
+    if string.find(string.lower(msg), string.lower(word)) then
+      print("Wort steht auf der Blacklist!")
+      var = true
+      break
+    end
+  end
+  return var
+end
+
+function convert_timestamp(timestamp, format)
+  local converted_date = run_command('date -d @'..timestamp..' +"'..format..'"')
+  local converted_date = string.gsub(converted_date, '%\n', '')
+  return converted_date
+end
+
+-- remove whitespace
+function all_trim(s)
+  return s:match( "^%s*(.-)%s*$" )
+end
+
+function pretty_float(x)
+	if x % 1 == 0 then
+		return tostring(math.floor(x))
+	else
+		return tostring(x)
+	end
 end

@@ -1,8 +1,8 @@
 local function callback(extra, success, result)
   if success then
-    print('File downloaded to:', result)
+    print('Datei heruntergeladen nach:', result)
   else
-    print('Error downloading: '..extra)
+    print('Fehler beim Herunerladen: '..extra)
   end
 end
 
@@ -31,9 +31,10 @@ local function pre_process(msg)
 end
 
 return {
-  description = "When bot receives a media msg, download the media.",
-  usage = "",
+  description = "Wenn der Bot ein Medium erhält, downloadet er es.",
+  usage = "Sende Bot ein Medium: Download",
   run = run,
+  privileged = true,
   patterns = {
     '%[(document)%]',
     '%[(photo)%]',

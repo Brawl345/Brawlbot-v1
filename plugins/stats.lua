@@ -3,8 +3,8 @@
 
 do
 
-local NUM_MSG_MAX = 5
-local TIME_CHECK = 4 -- seconds
+local NUM_MSG_MAX = 50
+local TIME_CHECK = 3 -- seconds
 
 local function user_print_name(user)
   if user.print_name then
@@ -29,7 +29,7 @@ local function get_msgs_user_chat(user_id, chat_id)
   local user = redis:hgetall(uhash)
   local um_hash = 'msgs:'..user_id..':'..chat_id
   user_info.msgs = tonumber(redis:get(um_hash) or 0)
-  user_info.name = user_print_name(user)..' ('..user_id..')'
+  user_info.name = user_print_name(user)
   return user_info
 end
 
@@ -55,7 +55,8 @@ local function chat_stats(chat_id)
 
   local text = ''
   for k,user in pairs(users_info) do
-    text = text..user.name..' => '..user.msgs..'\n'
+    text = text..user.name..': '..user.msgs..'\n'
+	text = string.gsub(text, "%_", " ")
   end
 
   return text
@@ -100,7 +101,7 @@ local function pre_process(msg)
     local hash = 'user:'..msg.from.id..':msgs'
     local msgs = tonumber(redis:get(hash) or 0)
     if msgs > NUM_MSG_MAX then
-      print('User '..msg.from.id..'is flooding '..msgs)
+      print('User '..msg.from.id..' floodet '..msgs)
       msg = nil
     end
     redis:setex(hash, TIME_CHECK, msgs+1)
@@ -125,11 +126,11 @@ local function bot_stats()
   -- Users
   local hash = 'msgs:*:'..our_id
   local r = redis:eval(redis_scan, 1, hash)
-  local text = 'Users: '..r
+  local text = 'User: '..r
 
   hash = 'chat:*:users'
   r = redis:eval(redis_scan, 1, hash)
-  text = text..'\nChats: '..r
+  text = text..'\nGruppen: '..r
 
   return text
 
@@ -143,13 +144,13 @@ local function run(msg, matches)
         local chat_id = msg.to.id
         return chat_stats(chat_id)
       else
-        return 'Stats works only on chats'
+        return 'Stats funktionieren nur in Chats!'
       end
     end
 
     if matches[2] == "bot" then
       if not is_sudo(msg) then
-        return "Bot stats requires privileged user"
+        return "Du bist kein Superuser. Dieser Vorfall wird gemeldet."
       else
         return bot_stats()
       end
@@ -157,7 +158,7 @@ local function run(msg, matches)
 
     if matches[2] == "chat" then
       if not is_sudo(msg) then
-        return "This command requires privileged user"
+        return "Du bist kein Superuser. Dieser Vorfall wird gemeldet."
       else
         return chat_stats(matches[3])
       end
@@ -166,11 +167,11 @@ local function run(msg, matches)
 end
 
 return {
-  description = "Plugin to update user stats.", 
+  description = "Stats-Plugin für Telegram", 
   usage = {
-    "!stats: Returns a list of Username [telegram_id]: msg_num",
-    "!stats chat <chat_id>: Show stats for chat_id",
-    "!stats bot: Shows bot stats (sudo users)"
+    "!stats: Zeigt Stats an",
+    "!stats chat <chat_id>: Stats für Chat-ID (nur Superuser)",
+    "!stats bot: Zeigt Bot-Stats (nur Superuser)"
   },
   patterns = {
     "^!([Ss]tats)$",
@@ -178,7 +179,8 @@ return {
     "^!([Ss]tats) (bot)"
     }, 
   run = run,
-  pre_process = pre_process
+  pre_process = pre_process,
+  notyping = true
 }
 
 end

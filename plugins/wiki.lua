@@ -2,11 +2,23 @@
 local socket = require "socket"
 local JSON = require "cjson"
 
+local decodetext
+do
+    local char, gsub, tonumber = string.char, string.gsub, tonumber
+    local function _(hex) return char(tonumber(hex, 16)) end
+
+    function decodetext(s)
+        s = gsub(s, '%%(%x%x)', _)
+        return s
+    end
+end
+
+
 local wikiusage = {
-  "!wiki [text]: Read extract from default Wikipedia (EN)",
-  "!wiki(lang) [text]: Read extract from 'lang' Wikipedia. Example: !wikies hola",
-  "!wiki search [text]: Search articles on default Wikipedia (EN)",
-  "!wiki(lang) search [text]: Search articles on 'lang' Wikipedia. Example: !wikies search hola",
+  "!wiki [Begriff]: Poste Artikel von der deutschen Wikipedia",
+  "!wiki(lang) [Begriff]: Poste Artikel aus anderer Sprache. Beispiel: !wikien Hello",
+  "!wiki search [Begriff]: Suche Text auf der deutschen Wikipedia",
+  "!wiki(lang) search [Begriff]: Suche Text auf einer anderssprachigen Wikipedia. Beispiel: !wikien search Hello",
 }
 
 local Wikipedia = {
@@ -17,7 +29,7 @@ local Wikipedia = {
     action = "query",
     prop = "extracts",
     format = "json",
-    exchars = 300,
+    exchars = 350,
     exsectionformat = "plain",
     explaintext = "",
     redirects = ""
@@ -28,7 +40,7 @@ local Wikipedia = {
     srlimit = 20,
 	 format = "json",
   },
-  default_lang = "en",
+  default_lang = "de",
 }
 
 function Wikipedia:getWikiServer(lang)
@@ -88,6 +100,7 @@ end
 
 -- extract intro passage in wiki page
 function Wikipedia:wikintro(text, lang)
+  local text = decodetext(text)
   local result = self:loadPage(text, lang, true, true)
 
   if result and result.query then
@@ -100,14 +113,16 @@ function Wikipedia:wikintro(text, lang)
     local page = query.pages[next(query.pages)]
 
     if page and page.extract then
-      return text..": "..page.extract
+	  local lang = lang or "de"
+	  local title = page.title
+	  local title_enc = URL.escape(title)
+      return title..":\n"..page.extract.."\n— https://"..lang..".wikipedia.org/wiki/"..title_enc
     else
-      local text = "Extract not found for "..text
-      text = text..'\n'..table.concat(wikiusage, '\n')
+      local text = text.." nicht gefunden"
       return text
     end
   else
-    return "Sorry an error happened"
+    return "Ein Fehler ist aufgetreten."
   end
 end
 
@@ -120,10 +135,10 @@ function Wikipedia:wikisearch(text, lang)
 	 for i,item in pairs(result.query.search) do
       titles = titles .. "\n" .. item["title"]
 	 end
-	 titles = titles ~= "" and titles or "No results found"
+	 titles = titles ~= "" and titles or "Keine Ergebnisse gefunden"
 	 return titles
   else
-    return "Sorry, an error occurred"
+    return "Ein Fehler ist aufgetreten."
   end
 
 end
@@ -149,7 +164,7 @@ local function run(msg, matches)
     lang = nil
   end
   if term == "" then
-    local text = "Usage:\n"
+    local text = "Benutzung:\n"
     text = text..table.concat(wikiusage, '\n')
     return text
   end
@@ -158,20 +173,20 @@ local function run(msg, matches)
   if search then
     result = Wikipedia:wikisearch(term, lang)
   else
-    -- TODO: Show the link
     result = Wikipedia:wikintro(term, lang)
   end
   return result
 end
 
 return {
-  description = "Searches Wikipedia and send results",
+  description = "Sendet Wikipedia-Artikel",
   usage = wikiusage,
   patterns = {
     "^![Ww]iki(%w+) (search) (.+)$",
     "^![Ww]iki (search) ?(.*)$",
     "^![Ww]iki(%w+) (.+)$",
-    "^![Ww]iki ?(.*)$"
+    "^![Ww]iki ?(.*)$",
+	"(%w+).wikipedia.org/wiki/(.+)"
   },
   run = run
 }

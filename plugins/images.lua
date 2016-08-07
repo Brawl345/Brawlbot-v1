@@ -1,4 +1,3 @@
-do
 
 function run(msg, matches)
   local url = matches[1]
@@ -7,14 +6,11 @@ function run(msg, matches)
 end
 
 return {
-  description = "When user sends image URL (ends with png, jpg, jpeg) download and send it to origin.", 
-  usage = "",
-  patterns = {
-    "(https?://[%w-_%.%?%.:/%+=&]+%.png)$",
-    "(https?://[%w-_%.%?%.:/%+=&]+%.jpg)$",
-    "(https?://[%w-_%.%?%.:/%+=&]+%.jpeg)$",
-  }, 
-  run = run 
+    description = "Sendet Bild, wenn User einen Link zu einem Bild postet",
+    usage = "Direktlink zu einem Bild",
+    patterns = {
+    	"(https?://[%w-_%%%.%?%.:,/%+=~&%[%]]+%.[Pp][Nn][Gg])$",
+    	"(https?://[%w-_%%%.%?%.:,/%+=~&%[%]]+%.[Jj][Pp][Ee]?[Gg])$"
+   }, 
+    run = run 
 }
-
-end

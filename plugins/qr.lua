@@ -49,7 +49,7 @@ local function qr(receiver, text, color, bgcolor)
 	return
 
   end
-  return "Oops! Something strange happened :("
+  return "Ups! Ein Fehler ist aufgetreten :("
 end
 
 local function run(msg, matches)
@@ -69,13 +69,13 @@ local function run(msg, matches)
 end
 
 return {
-  description = {"qr code plugin for telegram, given a text it returns the qr code"},
+  description = "Erstelle einen QR-Code",
   usage = {
-    "!qr [text]",
-    '!qr "[background color]" "[data color]" [text]\n'
-      .."Color through text: red|green|blue|purple|black|white|gray\n"
-      .."Colors through hex notation: (\"a56729\" is brown)\n"
-      .."Or colors through decimals: (\"255-192-203\" is pink)"
+    "!qr [Text]",
+    '!qr "[Hintergrundfarbe]" "[Datenfarbe]" [Text]\n'
+      .."Farbe mit Text: red|green|blue|purple|black|white|gray\n"
+      .."Farbe als HEX: (\"a56729\" ist braun)\n"
+      .."oder Farbe als Dezimalwert: (\"255-192-203\" ist pink)"
   },
   patterns = {
     '^!qr "(%w+)" "(%w+)" (.+)$',

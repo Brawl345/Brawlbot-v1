@@ -6,22 +6,29 @@ function run(msg, matches)
   local receiver = get_receiver(msg)
 
   local zooms = {16, 18}
+
   local urls = {}
-  for i = 1, #zooms do
+  for i in ipairs(zooms) do
     local zoom = zooms[i]
-    local url = "http://maps.googleapis.com/maps/api/staticmap?zoom=" .. zoom .. "&size=600x300&maptype=roadmap&center=" .. lat .. "," .. lon .. "&markers=color:blue%7Clabel:X%7C" .. lat .. "," .. lon
+    local url = "https://maps.googleapis.com/maps/api/staticmap?zoom=" .. zoom .. "&size=600x300&maptype=hybrid&center=" .. lat .. "," .. lon .. "&markers=color:red%7Clabel:•%7C" .. lat .. "," .. lon
     table.insert(urls, url)
   end
 
   send_photos_from_url(receiver, urls)
 
-  return "www.google.es/maps/place/@" .. lat .. "," .. lon
+  return "https://google.com/maps/place/@" .. lat .. "," .. lon
 end
 
 return {
-  description = "generates a map showing the given GPS coordinates", 
-  usage = "!gps latitude,longitude: generates a map showing the given GPS coordinates",
-  patterns = {"^!gps ([^,]*)[,%s]([^,]*)$"}, 
+  description = "Erzeugt eine Karte mit den angegebenen Koordinaten", 
+  usage = "!gps Breitengrad,Längengrad: Sendet Karte mit diesen Koordinaten",
+  patterns = {
+    "^!gps ([^,]*)[,%s]([^,]*)$",
+	"google.de/maps/@([^,]*)[,%s]([^,]*)",
+	"google.com/maps/@([^,]*)[,%s]([^,]*)",
+	"google.de/maps/place/@([^,]*)[,%s]([^,]*)",
+	"google.com/maps/place/@([^,]*)[,%s]([^,]*)"
+  }, 
   run = run 
 }
 

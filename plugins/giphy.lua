@@ -40,30 +40,29 @@ end
 
 local function run(msg, matches)
   local gif_url = nil
-  
-  -- If no search data, a random trending GIF will be sent
+
+  -- If no search data, a random trending GIF will be sended
   if matches[1] == "!gif" or matches[1] == "!giphy" then
     gif_url = get_random_top()
   else
     gif_url = search(matches[1])
   end
 
-  if not gif_url then 
-    return "Error: GIF not found"
+  if not gif_url then
+   return "Keine GIF gefunden!"
   end
 
   local receiver = get_receiver(msg)
-  print("GIF URL"..gif_url)
-  
+  print("GIF URL: "..gif_url)
   send_document_from_url(receiver, gif_url)
 end
 
 return {
-  description = "GIFs from telegram with Giphy API",
+  description = "Sendet eine GIF von Giphy",
   usage = {
-    "!gif (term): Search and sends GIF from Giphy. If no param, sends a trending GIF.",
-    "!giphy (term): Search and sends GIF from Giphy. If no param, sends a trending GIF."
-    },
+    "!gif: Sendet zufällige GIF",
+	"!gif [Suchbegriff]: Sendet zufällige GIF mit diesem Begriff"
+  },
   patterns = {
     "^!gif$",
     "^!gif (.*)",

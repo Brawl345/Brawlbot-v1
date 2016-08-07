@@ -1,9 +1,10 @@
+
 local OAuth = require "OAuth"
 
-local consumer_key = ""
-local consumer_secret = ""
-local access_token = ""
-local access_token_secret = ""
+local consumer_key = cred_data.tw_consumer_key
+local consumer_secret = cred_data.tw_consumer_secret
+local access_token = cred_data.tw_access_token
+local access_token_secret = cred_data.tw_access_token_secret
 
 local twitter_url = "https://api.twitter.com/1.1/statuses/user_timeline.json"
 
@@ -109,27 +110,27 @@ end
 
 local function check_keys()
    if consumer_key:isempty() then
-      return "Twitter Consumer Key is empty, write it in plugins/tweet.lua"
+      return "Twitter Consumer Key is empty, write it in plugins/twitter.lua"
    end
    if consumer_secret:isempty() then
-      return "Twitter Consumer Secret is empty, write it in plugins/tweet.lua"
+      return "Twitter Consumer Secret is empty, write it in plugins/twitter.lua"
    end
    if access_token:isempty() then
-      return "Twitter Access Token is empty, write it in plugins/tweet.lua"
+      return "Twitter Access Token is empty, write it in plugins/twitter.lua"
    end
    if access_token_secret:isempty() then
-      return "Twitter Access Token Secret is empty, write it in plugins/tweet.lua"
+      return "Twitter Access Token Secret is empty, write it in plugins/twitter.lua"
    end
    return ""
 end
 
 
 local function analyze_tweet(tweet)
-   local header = "Tweet from " .. tweet.user.name .. " (@" .. tweet.user.screen_name .. ")\n" -- "Link: https://twitter.com/statuses/" .. tweet.id_str
+   local header = "Tweet von " .. tweet.user.name .. " (@" .. tweet.user.screen_name .. ")\nhttps://twitter.com/statuses/" .. tweet.id_str
    local text = tweet.text
 
    -- replace short URLs
-   if tweet.entities.url then
+   if tweet.entities.urls then
       for k, v in pairs(tweet.entities.urls) do
          local short = v.url
          local long = v.expanded_url
@@ -147,6 +148,7 @@ local function analyze_tweet(tweet)
             table.insert(urls, v.media_url)
          end
          text = text:gsub(v.url, "")  -- Replace the URL in text
+		 text = unescape(text)
       end
    end
 
@@ -157,6 +159,7 @@ end
 local function sendTweet(receiver, tweet)
    local header, text, urls = analyze_tweet(tweet)
    -- send the parts
+   local text = unescape(text)
    send_msg(receiver, header .. "\n" .. text, ok_cb, false)
    send_all_files(receiver, urls)
    return nil
@@ -169,12 +172,12 @@ local function getTweet(msg, base, all)
    local response_code, response_headers, response_status_line, response_body = client:PerformRequest("GET", twitter_url, base)
 
    if response_code ~= 200 then
-      return "Can't connect, maybe the user doesn't exist."
+      return "Konnte nicht verbinden, evtl. existiert der User nicht?"
    end
 
    local response = json:decode(response_body)
    if #response == 0 then
-      return "Can't retrieve any tweets, sorry"
+      return "Konnte keinen Tweet bekommen, sorry"
    end
    if all then
       for i,tweet in pairs(response) do
@@ -190,7 +193,7 @@ local function getTweet(msg, base, all)
 end
 
 function isint(n)
-   return n==math.floor(n)
+  return n==math.floor(n)
 end
 
 local function run(msg, matches)
@@ -220,7 +223,7 @@ local function run(msg, matches)
       if #matches == 4 then
          local n = tonumber(matches[4])
          if n > 10 then
-            return "You only can ask for 10 tweets at most"
+            return "Du kannst nur 10 Tweets auf einmal abfragen!"
          end
          count = matches[4]
          all = true
@@ -233,12 +236,12 @@ end
 
 
 return {
-   description = "Random tweet from user",
+   description = "Zufällige Tweets von Usern",
    usage = {
-      "!tweet id [id]: Get a random tweet from the user with that ID",
-      "!tweet id [id] last: Get a random tweet from the user with that ID",
-      "!tweet name [name]: Get a random tweet from the user with that name",
-      "!tweet name [name] last: Get a random tweet from the user with that name"
+     "!tweet id [id]: Zufälliger Tweet vom User mit dieser ID",
+	 "!tweet id [id] last: Aktuellster Tweet vom User mit dieser ID",
+	 "!tweet name [Name]: Zufälliger Tweet vom User mit diesem Namen",
+	 "!tweet name [Name] last: Aktuellster Tweet vom User mit diesem Namen"
    },
    patterns = {
       "^!tweet (id) ([%w_%.%-]+)$",

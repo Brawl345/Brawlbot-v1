@@ -1,3 +1,5 @@
+-- Füge deinen Nutzernamen unten hinzu
+
 local function is_user_whitelisted(id)
   local hash = 'whitelist:user#id'..id
   local white = redis:get(hash) or false
@@ -15,7 +17,7 @@ local function kick_user(user_id, chat_id)
   local user = 'user#id'..user_id
 
   if user_id == tostring(our_id) then
-    send_msg(chat, "I won't kick myself!", ok_cb,  true)
+    send_msg(chat, "Ich werde mich nicht selbst kicken!", ok_cb,  true)
   else
     chat_del_user(chat, user, ok_cb, true)
   end
@@ -24,7 +26,7 @@ end
 local function ban_user(user_id, chat_id)
   local chat = 'chat#id'..chat_id
   if user_id == tostring(our_id) then
-    send_msg(chat, "I won't kick myself!", ok_cb,  true)
+    send_msg(chat, "Ich werde mich nicht selbst kicken!", ok_cb,  true)
   else
     -- Save to redis
     local hash =  'banned:'..chat_id..':'..user_id
@@ -40,6 +42,34 @@ local function is_banned(user_id, chat_id)
   return banned or false
 end
 
+local function makesudo(user_id, msg, delete)
+  local set = 'telegram:sudo_users'
+  local is_sudo = redis:sismember(set, user_id)
+  if delete then
+    if not is_sudo then
+	  return user_id..' ist kein Superuser.'
+	else
+	  if string.match(user_id, msg.from.id) then
+	    return 'Das Löschen deiner User-ID aus den Superusern wird feige verweigert.'
+	  else
+	    print('deleting user id '..user_id..' from redis set '..set)
+	    redis:srem(set, user_id)
+	    sudo_users = load_sudo_users()
+	    return user_id..' ist jetzt kein Superuser mehr.'
+	  end
+	end
+  else
+	if not is_sudo then
+	  print('saving user id '..user_id..' to redis set '..set)
+	  redis:sadd(set, user_id)
+	  sudo_users = load_sudo_users()
+	  return user_id..' ist jetzt ein Superuser.'
+	else
+	  return user_id..' ist bereits ein Superuser.'
+	end
+  end
+end
+
 local function pre_process(msg)
 
   -- SERVICE MESSAGE
@@ -51,7 +81,7 @@ local function pre_process(msg)
       if msg.action.link_issuer then
         user_id = msg.from.id
       else
-	      user_id = msg.action.user.id
+	    user_id = msg.action.user.id
       end
       print('Checking invited user '..user_id)
       local banned = is_banned(user_id, msg.to.id)
@@ -75,7 +105,7 @@ local function pre_process(msg)
       msg.text = ''
     end
   end
-
+  
   -- WHITELIST
   local hash = 'whitelist:enabled'
   local whitelist = redis:get(hash)
@@ -86,6 +116,7 @@ local function pre_process(msg)
     print('Whitelist enabled and not sudo')
     -- Check if user or chat is whitelisted
     local allowed = is_user_whitelisted(msg.from.id)
+	local has_been_warned = redis:hget('user:'..msg.from.id, 'has_been_warned')
 
     if not allowed then
       print('User '..msg.from.id..' not whitelisted')
@@ -95,7 +126,16 @@ local function pre_process(msg)
           print ('Chat '..msg.to.id..' not whitelisted')
         else
           print ('Chat '..msg.to.id..' whitelisted :)')
-        end
+		end
+      else
+	    if not has_been_warned then
+	      local user_name = get_name(msg)
+		  local receiver = get_receiver(msg)
+		  send_msg(receiver, "Hey "..user_name..", dies ist der Bot von @DEINUSERNAME und kann nur nach Freischaltung durch ihn benutzt werden." , ok_cb, false)
+		  redis:hset('user:'..msg.from.id, 'has_been_warned', true)
+		else
+		  print('User was already warned!')
+		end
       end
     else
       print('User '..msg.from.id..' allowed :)')
@@ -105,7 +145,7 @@ local function pre_process(msg)
       msg.text = ''
     end
 
-  else
+  else 
     print('Whitelist not enabled or is sudo')
   end
 
@@ -126,23 +166,33 @@ local function run(msg, matches)
     if msg.to.type == 'chat' then
       if matches[2] == 'user' then
         ban_user(user_id, chat_id)
-        return 'User '..user_id..' banned'
+        return 'User '..user_id..' gebannt'
       end
       if matches[2] == 'delete' then
         local hash =  'banned:'..chat_id..':'..user_id
         redis:del(hash)
-        return 'User '..user_id..' unbanned'
+        return 'User '..user_id..' ist nicht mehr gebannt'
       end
     else
-      return 'This isn\'t a chat group'
+      return 'Das ist keine Chat-Gruppe'
     end
+  end
+  
+  if matches[1] == 'makesudo' then
+    local user_id = matches[3]
+	if matches[2] == 'user' then
+	  return makesudo(user_id)
+	end
+	if matches[2] == 'delete' then
+	  return makesudo(user_id, msg, true)
+	end
   end
 
   if matches[1] == 'kick' then
     if msg.to.type == 'chat' then
       kick_user(matches[2], msg.to.id)
     else
-      return 'This isn\'t a chat group'
+      return 'Das ist keine Chat-Gruppe'
     end
   end
 
@@ -150,13 +200,13 @@ local function run(msg, matches)
     if matches[2] == 'enable' then
       local hash = 'whitelist:enabled'
       redis:set(hash, true)
-      return 'Enabled whitelist'
+      return 'Whitelist aktiviert'
     end
 
     if matches[2] == 'disable' then
       local hash = 'whitelist:enabled'
       redis:del(hash)
-      return 'Disabled whitelist'
+      return 'Whitelist deaktiviert'
     end
 
     if matches[2] == 'user' then
@@ -167,7 +217,7 @@ local function run(msg, matches)
 
     if matches[2] == 'chat' then
       if msg.to.type ~= 'chat' then
-        return 'This isn\'t a chat group'
+        return 'Das ist keine Chat-Gruppe!'
       end
       local hash = 'whitelist:chat#id'..msg.to.id
       redis:set(hash, true)
@@ -177,32 +227,34 @@ local function run(msg, matches)
     if matches[2] == 'delete' and matches[3] == 'user' then
       local hash = 'whitelist:user#id'..matches[4]
       redis:del(hash)
-      return 'User '..matches[4]..' removed from whitelist'
+      return 'User '..matches[4]..' von der Whitelist entfernt!'
     end
 
     if matches[2] == 'delete' and matches[3] == 'chat' then
       if msg.to.type ~= 'chat' then
-        return 'This isn\'t a chat group'
+        return 'Das ist keine Chat-Gruppe!'
       end
       local hash = 'whitelist:chat#id'..msg.to.id
       redis:del(hash)
-      return 'Chat '..msg.to.id..' removed from whitelist'
+      return 'Chat '..msg.to.id..' von der Whitelist entfernt'
     end
 
   end
 end
 
 return {
-  description = "Plugin to manage bans, kicks and white/black lists.",
+  description = "Banhammer-Plugin für Whitelist, Kicks und Banns (nur Superuser)", 
   usage = {
-    "!whitelist <enable>/<disable>: Enable or disable whitelist mode",
-    "!whitelist user <user_id>: Allow user to use the bot when whitelist mode is enabled",
-    "!whitelist chat: Allow everybody on current chat to use the bot when whitelist mode is enabled",
-    "!whitelist delete user <user_id>: Remove user from whitelist",
-    "!whitelist delete chat: Remove chat from whitelist",
-    "!ban user <user_id>: Kick user from chat and kicks it if joins chat again",
-    "!ban delete <user_id>: Unban user",
-    "!kick <user_id> Kick user from chat group"
+    "!whitelist <enable>/<disable>: Aktiviert/deaktiviert Whitelist",
+    "!whitelist user <user_id>: Whiteliste User",
+    "!whitelist chat: Whiteliste ganze Gruppe",
+    "!whitelist delete user <user_id>: Lösche User von der Whitelist",
+    "!whitelist delete chat: Lösche ganze Gruppe von der Whitelist",
+    "!ban user <user_id>: Kicke User vom Chat und kicke ihn, wenn er erneut beitritt",
+    "!ban delete <user_id>: Entbanne User",
+    "!kick <user_id>: Kicke User vom Chat",
+	"!makesudo user <user_id>: Macht User zum Superuser",
+	"!makesudo delete <user_id>: Macht User zum Superuser",
   },
   patterns = {
     "^!(whitelist) (enable)$",
@@ -215,7 +267,9 @@ return {
     "^!(ban) (delete) (%d+)$",
     "^!(kick) (%d+)$",
     "^!!tgservice (.+)$",
-  },
+	"^!(makesudo) (user) (%d+)$",
+	"^!(makesudo) (delete) (%d+)$"
+  }, 
   run = run,
   pre_process = pre_process
 }
