@@ -37,17 +37,18 @@ Installation
 ------------
 ```bash
 # Getestet auf Ubuntu 14.04, für andere Distris, checke https://github.com/vysheng/tg#installation
+# Diese Version bekommt KEINE Updates mehr! Siehe https://github.com/Brawl345/Brawlbot-v2 für Version 2
 $ sudo apt-get install libreadline-dev libconfig-dev libssl-dev lua5.2 liblua5.2-dev libevent-dev make unzip git redis-server libjansson-dev libpython-dev
 # Nach den Abhängigkeiten kommt jetzt die Installation des Bots
 $ cd $HOME
-$ git clone https://gitlab.com/iCON/brawlbot.git
+$ git clone https://github.com/Brawl345/Brawlbot-v1
 $ cd brawlbot
 $ git clone —recursive https://github.com/vysheng/tg.git
 $ ./launch.sh install
 $ ./launch.sh # Fragt dich nach deiner Telefonnummer und dem Verifizierungscode
 ```
 
-Mehr [`Plugins`](https://gitlab.com/iCON/brawlbot/tree/master/plugins) aktivieren
+Mehr [`Plugins`](https://github.com/Brawl345/Brawlbot-v1/tree/master/plugins) aktivieren
 -------------
 Schau dir die Plugins-Liste mit `!plugins` an.
 
